@@ -20,9 +20,15 @@ from moco.builder import MoCo
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser(description="MoCo Pretrain")
-parser.add_argument("-data", metavar="DIR", default="data/xjb", help="path to dataset")
+parser.add_argument("--dataset", metavar="DATASET", default="xjb", help="dataset")
 parser.add_argument(
     "-a", "--arch", metavar="ARCH", default="resnet50", help="model architecture"
+)
+parser.add_argument(
+    "--save_dir",
+    dest="save_dir",
+    help="directory to save models",
+    default="models",
 )
 parser.add_argument(
     "-j",
@@ -183,7 +189,9 @@ def main():
 
     # Data loading code
     # traindir = os.path.join(args.data, 'train')
-    traindir = args.data
+    if args.dataset == "xjb":
+        traindir = "data/xjb"
+
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
     )
@@ -232,6 +240,10 @@ def main():
         train(train_loader, model, criterion, optimizer, epoch, args)
 
         if epoch % 10 == 0 or epoch == args.epochs - 1:
+            filename = "checkpoint_{:04d}.pth.tar".format(epoch)
+            output_dir = args.save_dir + "/" + args.arch + "/" + args.dataset
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
             save_checkpoint(
                 {
                     "epoch": epoch + 1,
@@ -240,7 +252,7 @@ def main():
                     "optimizer": optimizer.state_dict(),
                 },
                 is_best=False,
-                filename="checkpoint_{:04d}.pth.tar".format(epoch),
+                filename=os.path.join(output_dir, filename),
             )
 
 
@@ -321,8 +333,6 @@ class AverageMeter(object):
 
     def __str__(self):
         fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
-        # print(fmtstr)
-        # print(fmtstr.format(**self.__dict__))
         return fmtstr.format(**self.__dict__)
 
 
