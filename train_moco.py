@@ -239,7 +239,7 @@ def main():
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args)
 
-        if epoch % 10 == 0 or epoch == args.epochs - 1:
+        if epoch % args.print_freq == 0 or epoch == args.epochs - 1:
             filename = "checkpoint_{:04d}.pth.tar".format(epoch)
             output_dir = args.save_dir + "/" + args.arch + "/" + args.dataset
             if not os.path.exists(output_dir):
@@ -265,7 +265,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
     progress = ProgressMeter(
         len(train_loader),
         [batch_time, data_time, losses, top1, top5],
-        prefix="Epoch: [{}]".format(epoch),
+        prefix="Epoch: [{}/{}]".format(epoch, args.epochs),
     )
 
     # swicht to train mode
