@@ -3,8 +3,8 @@ import torch.nn as nn
 from torch.nn.modules import loss
 import torchvision.models as models
 
-from necks import DenseCLNeck
-from heads.contrastive_head import ContrastiveHead
+from moco.necks import DenseCLNeck
+from moco.heads.contrastive_head import ContrastiveHead
 from ipdb import set_trace
 
 
@@ -16,18 +16,20 @@ class DenseCL(nn.Module):
 
     """
 
-    def __init__(self, base_encoder, dim=128, K=1024, m=0.999, T=0.01, mlp=False):
+    def __init__(self, base_encoder, dim=128, K=1024, m=0.999, T=0.1, loss_lambda=0.5):
         """
         base_encoder: backebone, here is resnet50
         dim: feature dimension (default 128)
         K: queue size, number of negative keys (default 1024, origin paper is 65536)
         m: moco momentum of updating key encoder (default 0.999)
-        T: softmax temperature (default 0.07)
+        T: softmax temperature (default 0.1)
+        loss_lambda: default 0.5
         """
         super(DenseCL, self).__init__()
         self.K = K
         self.m = m
         self.T = T
+        self.loss_lambda = loss_lambda
 
         # create the encoders
         # num_classes is the output fc dimension
@@ -189,14 +191,20 @@ class DenseCL(nn.Module):
         loss_dense = self.head(l_pos_dense, l_neg_dense)["loss_contra"]
 
         losses = dict()
-        losses["loss_contra_single"] = loss_single
-        losses["loss_contra_dense"] = loss_dense
-
+        losses["loss_contra_single"] = loss_single * (1 - self.loss_lambda)
+        losses["loss_contra_dense"] = loss_dense * self.loss_lambda
+        losses["loss"] = losses["loss_contra_single"] + losses["loss_contra_dense"]
         # dequeue and enqueue
         self._dequeue_and_enqueue(k)
         self._dequeue_and_enqueue2(k2)
 
         return losses
+
+    def forward(self, im_q, im_k, mode="train"):
+        if mode == "train":
+            return self.forward_train(im_q, im_k)
+        else:
+            raise Exception("No sum mode: {}".format(mode))
 
 
 if __name__ == "__main__":
@@ -204,4 +212,4 @@ if __name__ == "__main__":
     model = DenseCL(resnet50, mlp=True).cuda()
     im_q = torch.randn(2, 3, 224, 224).cuda()
     im_k = torch.randn(2, 3, 224, 224).cuda()
-    losses = model.forward_train(im_q, im_k)
+    losses = model(im_q, im_k)
