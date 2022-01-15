@@ -20,7 +20,7 @@ from moco.builder import MoCo
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser(description="MoCo Pretrain")
-parser.add_argument("--dataset", metavar="DATASET", default="xjb", help="dataset")
+parser.add_argument("--dataset", metavar="DATASET", default="xjb_video", help="dataset")
 parser.add_argument(
     "-a", "--arch", metavar="ARCH", default="resnet50", help="model architecture"
 )
@@ -191,6 +191,8 @@ def main():
     # traindir = os.path.join(args.data, 'train')
     if args.dataset == "xjb":
         traindir = "data/xjb"
+    elif args.dataset == "xjb_video":
+        traindir = "data/xjb/videos"
 
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]

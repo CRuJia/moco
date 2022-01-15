@@ -21,11 +21,11 @@ from moco.denseCL import DenseCL
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser(description="MoCo Pretrain")
-parser.add_argument("--dataset", metavar="DATASET", default="xjb", help="dataset")
+parser.add_argument("--dataset", metavar="DATASET", default="xjb_video", help="dataset")
 parser.add_argument(
     "-a", "--arch", metavar="ARCH", default="resnet50", help="model architecture"
 )
-parser.add_argument("--model", default="DenseCL", help="which model")
+parser.add_argument("--model", default="DenseCLv1", help="which model")
 parser.add_argument(
     "--save_dir",
     dest="save_dir",
@@ -190,7 +190,9 @@ def main():
     # Data loading code
     # traindir = os.path.join(args.data, 'train')
     if args.dataset == "xjb":
-        traindir = "data/xjb"
+        traindir = "data/xjb/images"
+    elif args.dataset == "xjb_video":
+        traindir = "data/xjb/videos"
 
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
@@ -199,6 +201,7 @@ def main():
     if args.aug_plus:
         # MoCo v2's aug: similar to SimCLR https://arxiv.org/abs/2002.05709
         augmentation = [
+            transforms.Resize(256),
             transforms.RandomResizedCrop(224, scale=(0.2, 1.0)),
             transforms.RandomApply(
                 [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8  # not strengthened
@@ -212,6 +215,7 @@ def main():
     else:
         # MoCo v1's aug: the same as InstDisc https://arxiv.org/abs/1805.01978
         augmentation = [
+            transforms.Resize(256),
             transforms.RandomResizedCrop(224, scale=(0.2, 1.0)),
             transforms.RandomGrayscale(p=0.2),
             transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
