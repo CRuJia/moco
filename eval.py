@@ -35,6 +35,41 @@ def read_img(img_path, query_size=128):
     return query
 
 
+def eval(model, val_loader, classes):
+    cls_vec = defaultdict(list)
+    for i, (images, cls) in enumerate(val_loader):
+        images = images.cuda(non_blocking=True)
+        cls = int(cls)
+        query = model(images)
+        query = query.mean(-1).mean(-1)
+        cls_vec[cls].append(query)
+        # if i > 5:
+        #     break
+    intra_dist = 0.0
+    inter_dist = 0.0
+    cls_means = []
+    for cls in cls_vec:
+        vec = torch.cat(cls_vec[cls])
+        cls_mean = vec.mean(0)
+        cls_means.append(cls_mean)
+        cls_mean = cls_mean.unsqueeze(0).repeat(len(cls_vec[cls]), 1)
+        dist = 1 - torch.cosine_similarity(vec, cls_mean)
+        dist = float(dist.mean())
+        print("%10s" % classes[cls], "%5f" % dist)
+        intra_dist += dist
+    cls_num = len(cls_means)
+    for i in range(cls_num):
+        for j in range(i + 1, cls_num):
+            inter_dist += 1 - float(
+                torch.cosine_similarity(
+                    cls_means[i].unsqueeze(0), cls_means[j].unsqueeze(0)
+                )
+            )
+
+    inter_dist /= (cls_num * (cls_num - 1)) / 2
+    return intra_dist, inter_dist
+
+
 def main():
     model = MoCo(models.__dict__["resnet50"], mlp=True, K=8192)
     checkpoint = torch.load("models/resnet50/xjb_video/checkpoint_0100.pth.tar")
@@ -72,47 +107,12 @@ def main():
         sampler=train_sampler,
         drop_last=True,
     )
-    cls_vec = defaultdict(list)
-    for i, (images, cls) in enumerate(val_loader):
-        cls = int(cls)
-        query = backbone(images)
-        query = query.mean(-1).mean(-1)
-        cls_vec[cls].append(query)
-        # if i > 5:
-        #     break
-    dist_sum = 0.0
-    for cls in cls_vec:
-        vec = torch.cat(cls_vec[cls])
-        cls_mean = vec.mean(0)
-        cls_mean = cls_mean.unsqueeze(0).repeat(len(cls_vec[cls]), 1)
-        dist = 1 - torch.cosine_similarity(vec, cls_mean)
-        dist = float(dist.mean())
-        print(val_dataset.classes[cls], dist)
-        dist_sum += dist
-    print("dist_sum: ", dist_sum)
-
-    # set_trace()
-
-    # path = "door1.jpg"
-    # query = read_img(path)
-    # query = query.mean(-1).mean(-1)
-    # set_trace()
+    intra_dist, inter_dist = eval(backbone, val_loader, val_dataset.classes)
+    print("intra_dist", intra_dist)
+    print("inter_dist", inter_dist)
 
 
 if __name__ == "__main__":
     # path = "door1.jpg"
     # read_img(path)
     main()
-
-    """
-    199
-    cabinet 0.06566110998392105
-chair 0.07336632162332535
-desk 0.07596726715564728
-door 0.100099578499794
-handrail 0.09504374116659164
-panel 0.06813354045152664
-washbasin 0.08650251477956772
-window 0.10193048417568207
-dist_sum:  0.6667045578360558
-    """

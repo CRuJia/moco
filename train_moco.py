@@ -12,6 +12,7 @@ import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 import torchvision.models as models
 from ipdb import set_trace
+from eval import eval
 
 import moco.loader
 from moco.builder import MoCo
@@ -235,12 +236,42 @@ def main():
         sampler=train_sampler,
         drop_last=True,
     )
+    val_augmentation = [
+        transforms.Resize((128, 128)),
+        transforms.ToTensor(),
+        normalize,
+    ]
+    valdir = "data/xjb/bbox"
+    val_dataset = datasets.ImageFolder(valdir, transforms.Compose(val_augmentation))
+
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=1,
+        pin_memory=True,
+        sampler=None,
+        drop_last=True,
+    )
+
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args)
-
+        backbone = nn.Sequential(
+            model.encoder_q.conv1,
+            model.encoder_q.bn1,
+            model.encoder_q.relu,
+            model.encoder_q.maxpool,
+            model.encoder_q.layer1,
+            model.encoder_q.layer2,
+            model.encoder_q.layer3,
+            model.encoder_q.layer4,
+        )
+        backbone.eval()
+        intra_dist, inter_dist = eval(backbone, val_loader, val_dataset.classes)
+        print("intra_dist: %5f, inter_dist: %5f " % (intra_dist, inter_dist))
         if epoch % args.print_freq == 0 or epoch == args.epochs - 1:
             filename = "checkpoint_{:04d}.pth.tar".format(epoch)
             output_dir = args.save_dir + "/" + args.arch + "/" + args.dataset
