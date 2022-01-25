@@ -21,7 +21,9 @@ from moco.builder import MoCo
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser(description="MoCo Pretrain")
-parser.add_argument("--dataset", metavar="DATASET", default="xjb_video1", help="dataset")
+parser.add_argument(
+    "--dataset", metavar="DATASET", default="xjb_video1", help="dataset"
+)
 parser.add_argument(
     "-a", "--arch", metavar="ARCH", default="resnet50", help="model architecture"
 )
@@ -255,7 +257,7 @@ def main():
         sampler=None,
         drop_last=True,
     )
-
+    dist = 100.0
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, epoch, args)
 
@@ -272,10 +274,13 @@ def main():
             model.encoder_q.layer4,
         )
         backbone.eval()
-        intra_dist, inter_dist = eval(backbone, val_loader, val_dataset.classes)
-        print("intra_dist: %5f, inter_dist: %5f " % (intra_dist, inter_dist))
-        if epoch % args.print_freq == 0 or epoch == args.epochs - 1:
-            filename = "checkpoint_{:04d}.pth.tar".format(epoch)
+        intra_dist, inter_sim = eval(backbone, val_loader, val_dataset.classes)
+        print("intra_dist: %5f, inter_sim: %5f " % (intra_dist, inter_sim))
+        if (intra_dist + inter_sim) < dist:
+            dist = intra_dist + inter_sim
+
+            # if epoch % args.print_freq == 0 or epoch == args.epochs - 1:
+            filename = "checkpoint_{:04d}_{:05f}.pth.tar".format(epoch, dist)
             output_dir = args.save_dir + "/" + args.arch + "/" + args.dataset
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
@@ -285,8 +290,9 @@ def main():
                     "arch": args.arch,
                     "state_dict": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
+                    "dist": dist,
                 },
-                is_best=False,
+                is_best=True,
                 filename=os.path.join(output_dir, filename),
             )
 

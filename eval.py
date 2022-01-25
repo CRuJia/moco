@@ -46,7 +46,7 @@ def eval(model, val_loader, classes):
         # if i > 5:
         #     break
     intra_dist = 0.0
-    inter_dist = 0.0
+    inter_sim = 0.0
     cls_means = []
     for cls in cls_vec:
         vec = torch.cat(cls_vec[cls])
@@ -60,19 +60,21 @@ def eval(model, val_loader, classes):
     cls_num = len(cls_means)
     for i in range(cls_num):
         for j in range(i + 1, cls_num):
-            inter_dist += 1 - float(
+            sim = float(
                 torch.cosine_similarity(
                     cls_means[i].unsqueeze(0), cls_means[j].unsqueeze(0)
                 )
             )
+            inter_sim += sim
+            # print("%10s and %10s similarity is :%5f" % (classes[i], classes[j], sim))
 
-    inter_dist /= (cls_num * (cls_num - 1)) / 2
-    return intra_dist, inter_dist
+    inter_sim /= (cls_num * (cls_num - 1)) / 2
+    return intra_dist, inter_sim
 
 
 def main():
     model = MoCo(models.__dict__["resnet50"], mlp=True, K=8192)
-    checkpoint = torch.load("models/resnet50/xjb_video/checkpoint_0100.pth.tar")
+    checkpoint = torch.load("models/resnet50/xjb_video/checkpoint_0199.pth.tar")
     model.load_state_dict(checkpoint["state_dict"])
 
     backbone = nn.Sequential(
@@ -85,6 +87,7 @@ def main():
         model.encoder_q.layer3,
         model.encoder_q.layer4,
     )
+    backbone.cuda()
     backbone.eval()
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
