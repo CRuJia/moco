@@ -17,8 +17,6 @@ from eval import eval
 import moco.loader
 from moco.builder import MoCo
 
-# set for gpu
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser(description="MoCo Pretrain")
 parser.add_argument(
@@ -42,6 +40,7 @@ parser.add_argument(
     help="number of data loading workers (default: 32)",
 )
 parser.add_argument("--gpu", default=True, help="use gpu or not")
+parser.add_argument("--gpu_device", default="0", type=str)
 parser.add_argument(
     "--epochs", default=200, type=int, metavar="N", help="number of total epochs to run"
 )
@@ -137,6 +136,9 @@ parser.add_argument("--cos", action="store_true", help="use cosine lr schedule")
 
 def main():
     args = parser.parse_args()
+    print(args)
+    # set for gpu
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_device
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -198,6 +200,12 @@ def main():
         traindir = "data/xjb/videos"
     elif args.dataset == "xjb_video1":
         traindir = "data/xjb/videos1"
+    elif args.dataset == "xjb_video2":
+        traindir = "data/xjb/videos2"
+    elif args.dataset == "xjb_video3":
+        traindir = "data/xjb/videos3"
+    elif args.dataset == "coco": # use train2014、train2017
+        traindir = "data/coco"
 
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
@@ -276,11 +284,14 @@ def main():
         backbone.eval()
         intra_dist, inter_sim = eval(backbone, val_loader, val_dataset.classes)
         print("intra_dist: %5f, inter_sim: %5f " % (intra_dist, inter_sim))
-        if (intra_dist + inter_sim) < dist:
-            dist = intra_dist + inter_sim
+        if (intra_dist + inter_sim) < dist or epoch % args.print_freq == 0 or epoch == args.epochs - 1:
+            if (intra_dist + inter_sim) < dist:
+                dist = intra_dist + inter_sim
+                isbest = True
+            else:
+                isbest = False
 
-            # if epoch % args.print_freq == 0 or epoch == args.epochs - 1:
-            filename = "checkpoint_{:04d}_{:05f}.pth.tar".format(epoch, dist)
+            filename = "checkpoint_{:04d}_{:05f}.pth.tar".format(epoch, intra_dist + inter_sim)
             output_dir = args.save_dir + "/" + args.arch + "/" + args.dataset
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
@@ -292,7 +303,7 @@ def main():
                     "optimizer": optimizer.state_dict(),
                     "dist": dist,
                 },
-                is_best=True,
+                is_best=isbest,
                 filename=os.path.join(output_dir, filename),
             )
 
